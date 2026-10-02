@@ -1,16 +1,16 @@
 var should = require('should');
-var levels = require('../lib/levels');
 var times = require('../lib/times');
+const helper = require('./inithelper')();
 
 describe('timeago', function() {
-  var ctx = {};
+  var ctx = helper.getctx();
   ctx.ddata = require('../lib/data/ddata')();
   ctx.notifications = require('../lib/notifications')(env, ctx);
-  ctx.language = require('../lib/language')();
+  ctx.settings.heartbeat = 0.5; // short heartbeat to speedup tests
 
   var timeago = require('../lib/plugins/timeago')(ctx);
 
-  var env = require('../env')();
+  var env = require('../lib/server/env')();
 
   function freshSBX () {
     //set extendedSettings right before calling withExtendedSettings, there's some strange test interference here
@@ -41,6 +41,7 @@ describe('timeago', function() {
     done();
   });
 
+
   it('should trigger a warning when data older than 15m', function(done) {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{ mills: Date.now() - times.mins(16).msecs, mgdl: 100, type: 'sgv' }];
@@ -50,12 +51,15 @@ describe('timeago', function() {
 
     var currentTime = new Date().getTime();
 
-    // eslint-disable-next-line no-empty
-    while (currentTime + 500 >= new Date().getTime()) {}
-
     var highest = ctx.notifications.findHighestAlarm('Time Ago');
-    highest.level.should.equal(levels.WARN);
-    highest.message.should.equal('Last received: 16 mins ago\nBG Now: 100 mg/dl');
+    highest.level.should.equal(ctx.levels.WARN);
+
+    var expectedMessage =
+      sbx.settings.units === 'mmol' ?
+        'Last received: 16 mins ago\nBG Now: 5.6 mmol/L' :
+        'Last received: 16 mins ago\nBG Now: 100 mg/dl';
+    highest.message.should.equal(expectedMessage);
+
     done();
   });
 
@@ -66,8 +70,14 @@ describe('timeago', function() {
     var sbx = freshSBX();
     timeago.checkNotifications(sbx);
     var highest = ctx.notifications.findHighestAlarm('Time Ago');
-    highest.level.should.equal(levels.URGENT);
-    highest.message.should.equal('Last received: 31 mins ago\nBG Now: 100 mg/dl');
+    highest.level.should.equal(ctx.levels.URGENT);
+
+    var expectedMessage =
+      sbx.settings.units === 'mmol' ?
+        'Last received: 31 mins ago\nBG Now: 5.6 mmol/L' :
+        'Last received: 31 mins ago\nBG Now: 100 mg/dl';
+    highest.message.should.equal(expectedMessage);
+
     done();
   });
 
